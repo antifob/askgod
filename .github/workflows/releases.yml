@@ -1,0 +1,83 @@
+---
+name: releases
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+            version: askgod
+          - goos: darwin
+            goarch: amd64
+            version: askgod-server
+          - goos: darwin
+            goarch: arm64
+            version: askgod
+          - goos: linux
+            goarch: amd64
+            version: askgod
+          - goos: linux
+            goarch: amd64
+            version: askgod-server
+          - goos: linux
+            goarch: arm64
+            version: askgod
+          - goos: windows
+            goarch: amd64
+            version: askgod
+          - goos: windows
+            goarch: amd64
+            version: askgod-server
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.18
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          if [ Xaskgod-server != X"${{ matrix.version }}" ]; then
+              export CGO_ENABLED=0
+          fi
+          go build -o "${{ matrix.version }}_${{ matrix.goos }}-${{ matrix.goarch }}" "./cmd/${{ matrix.version }}"
+
+      - name: Upload to artifact storage
+        uses: actions/upload-artifact@v3
+        with:
+          path: askgod*_*
+          if-no-files-found: error
+          # only meant for sharing with the publish job
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          path: askgod*
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          # https://github.com/marvinpinto/actions/issues/61#issuecomment-1407551940
+          automatic_release_tag: "latest"
+          prerelease: false
+          files: |
+            askgod*
+        id: "automatic_releases"
